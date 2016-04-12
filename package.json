@@ -1,0 +1,19 @@
+{
+  "name": "macgo",
+  "version": "1.0.0",
+  "description": "An abstraction over the native mongo driver",
+  "main": "index.js",
+  "scripts": {
+    "test": "npm test"
+  },
+  "keywords": [
+    "mongo"
+  ],
+  "author": "mac-",
+  "license": "ISC",
+  "dependencies": {
+    "async": "^1.5.2",
+    "mongodb": "^1.4.40",
+    "underscore": "^1.8.3"
+  }
+}
