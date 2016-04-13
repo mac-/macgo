@@ -2,8 +2,8 @@ var Db = require('mongodb').Db,
 	Server = require('mongodb').Server,
 	ObjectID = require('mongodb').ObjectID,
 	ReplSetServers = require('mongodb').ReplSetServers,
-	NotFoundError = require('./errors/NotFoundError'),
-	ConflictError = require('./errors/ConflictError'),
+	NotFoundError = require('./lib/errors/NotFoundError'),
+	ConflictError = require('./lib/errors/ConflictError'),
 	_ = require('underscore'),
 	async = require('async');
 
