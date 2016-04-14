@@ -23,7 +23,7 @@ module.exports = function MongoClient(options) {
 		dbUser = options.db.userName || '',
 		dbPass = options.db.password || '',
 		collectionName = options.db.collectionName || 'test',
-		indeces = options.db.indeces,
+		indices = options.db.indices,
 		collection;
 
 	this._db = null;
@@ -130,20 +130,20 @@ module.exports = function MongoClient(options) {
 							isConnecting = false;
 							return;
 						}
-						if (indeces) {
-							log('debug', 'Ensuring indeces on collection "' + collectionName + '" :', indeces);
+						if (indices) {
+							log('debug', 'Ensuring indices on collection "' + collectionName + '" :', indices);
 							var ensureIndexFuncs = [];
-							for (var i = 0; i < indeces.length; i++) {
+							for (var i = 0; i < indices.length; i++) {
 								(function(idx) {
 									var func = function(cb) {
 										collection.ensureIndex(idx.index, {background: true, safe: true, unique: idx.unique}, cb);
 									};
 									ensureIndexFuncs.push(func);
-								}(indeces[i]));
+								}(indices[i]));
 							}
 							async.parallel(ensureIndexFuncs, function(err, results) {
 								if (err) {
-									log('error', 'Error ensuring indeces on collection "' + collectionName + '"', err);
+									log('error', 'Error ensuring indices on collection "' + collectionName + '"', err);
 									callbacksInWaiting.forEach(function(cb) {
 										cb(err);
 									});
@@ -152,7 +152,7 @@ module.exports = function MongoClient(options) {
 									isConnecting = false;
 									return;
 								}
-								log('debug', 'Successfully ensured indeces on collection "' + collectionName + '"');
+								log('debug', 'Successfully ensured indices on collection "' + collectionName + '"');
 								callbacksInWaiting.forEach(function(cb) {
 									cb(null, collection);
 								});
@@ -162,7 +162,7 @@ module.exports = function MongoClient(options) {
 							});
 						}
 						else {
-							log('debug', 'No indeces on this collection');
+							log('debug', 'No indices on this collection');
 							callbacksInWaiting.forEach(function(cb) {
 								cb(null, collection);
 							});
@@ -174,20 +174,20 @@ module.exports = function MongoClient(options) {
 				}
 				else {
 					log('debug', 'No DB authentication being used');
-					if (indeces) {
-						log('debug', 'Ensuring indeces on collection "' + collectionName + '" :', indeces);
+					if (indices) {
+						log('debug', 'Ensuring indices on collection "' + collectionName + '" :', indices);
 						var ensureIndexFuncs = [];
-						for (var i = 0; i < indeces.length; i++) {
+						for (var i = 0; i < indices.length; i++) {
 							(function(idx) {
 								var func = function(cb) {
 									collection.ensureIndex(idx.index, {background: true, safe: true, unique: idx.unique}, cb);
 								};
 								ensureIndexFuncs.push(func);
-							}(indeces[i]));
+							}(indices[i]));
 						}
 						async.parallel(ensureIndexFuncs, function(err, results) {
 							if (err) {
-								log('error', 'Error ensuring indeces on collection "' + collectionName + '"', err);
+								log('error', 'Error ensuring indices on collection "' + collectionName + '"', err);
 								callbacksInWaiting.forEach(function(cb) {
 									cb(err);
 								});
@@ -196,7 +196,7 @@ module.exports = function MongoClient(options) {
 								isConnecting = false;
 								return;
 							}
-							log('debug', 'Successfully ensured indeces on collection "' + collectionName + '"');
+							log('debug', 'Successfully ensured indices on collection "' + collectionName + '"');
 							callbacksInWaiting.forEach(function(cb) {
 								cb(null, collection);
 							});
@@ -304,7 +304,7 @@ module.exports = function MongoClient(options) {
 			});
 		});
 	};
-
+	
 	this.update = function(id, doc, callback, leaveModifiedDate) {
 		if (!id || !doc || typeof(doc) !== 'object' || !callback || typeof(callback) !== 'function') {
 			throw new Error('Missing or invalid parameters');
@@ -314,6 +314,55 @@ module.exports = function MongoClient(options) {
 	};
 
 	this.updateBy = function(selector, sort, doc, callback, leaveModifiedDate) {
+		if (!selector || !sort || !doc || typeof(doc) !== 'object' || !callback || typeof(callback) !== 'function') {
+			throw new Error('Missing or invalid parameters');
+		}
+
+		self.connect(function(error, collection) {
+			if (error) {
+				return callback(error);
+			}
+
+			var icb = self._getInstrumentedCallback('findAndModify', callback);
+
+			delete doc._id;
+			delete doc.created;
+			if (!leaveModifiedDate) {
+				doc.$set = {
+					modified: new Date()
+				}
+			}
+			else {
+				delete doc.modified;
+			}
+
+			collection.findAndModify(selector, sort, doc, { w: 1, new: true, multi: false }, function(error, entry) {
+				if (error) {
+					if (error.message.indexOf('duplicate key error') >= 0) {
+						var searchStr = 'index: ' + dbName + '.' + collectionName + '.$';
+						var fieldIdx = error.message.indexOf(searchStr);
+						var field = error.message.substr(fieldIdx + searchStr.length).split('_')[0];
+						error = new ConflictError('Object with property ' + field + '=' + doc[field] + ' already exists');
+					}
+					return icb(error);
+				}
+				if (!entry) {
+					return icb(new NotFoundError('Document Not Found'));
+				}
+				icb(null, entry);
+			});
+		});
+	};
+
+	this.updatePartial = function(id, doc, callback, leaveModifiedDate) {
+		if (!id || !doc || typeof(doc) !== 'object' || !callback || typeof(callback) !== 'function') {
+			throw new Error('Missing or invalid parameters');
+		}
+		id = (typeof(id) === 'string') ? new ObjectID(id) : id;
+		self.updatePartialBy({ _id: id }, [['_id', 1]], doc, callback, leaveModifiedDate);
+	};
+
+	this.updatePartialBy = function(selector, sort, doc, callback, leaveModifiedDate) {
 		if (!selector || !sort || !doc || typeof(doc) !== 'object' || !callback || typeof(callback) !== 'function') {
 			throw new Error('Missing or invalid parameters');
 		}
