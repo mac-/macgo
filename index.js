@@ -432,6 +432,29 @@ module.exports = function MongoClient(options) {
 			});
 		});
 	};
+	
+	this.removeAll = function(selector, callback) {
+		// if selector is a function, assume it's actually the callback
+		if (selector && typeof(selector) === 'function') {
+			callback = selector;
+			selector = {};
+		}
+		else if (!selector || !callback || typeof(callback) !== 'function') {
+			throw new Error('Missing or invalid parameters');
+		}
+		self.connect(function(error, collection) {
+			if (error) {
+				return callback(error);
+			}
+			var icb = self._getInstrumentedCallback('findAndRemove', callback);
+			collection.remove(selector, { w: 1 }, function(err, numberOfRemovedDocs) {
+				if (error) {
+					return icb(error);
+				}
+				icb(error, numberOfRemovedDocs);
+			});
+		});
+	};
 };
 
 
